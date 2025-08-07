@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.UUID;
 
 public class ThreatData {
+    public UUID highestKey = null;
     public HashMap<UUID, Integer> map = new HashMap<>();
 
     public void addThreat(LivingEntity threatCreatorEntity, Mob mob, int threat) {
@@ -21,30 +22,36 @@ public class ThreatData {
     }
 
     private void updateMobTargetWithHighestThreat(Mob mob, LivingEntity threatCreatorEntity, UUID key) {
-        var highestKey = getHighest();
-        if (highestKey == null) {
+        if (
+            highestKey == null ||
+            map.get(key) > map.get(highestKey) ||
+            highestKey.equals(key)
+        ) {
+            highestKey = key;
+            setTargetTo(mob, threatCreatorEntity);
             return;
         }
 
-        if (highestKey.equals(key)) {
-            if (mob.getTarget() != threatCreatorEntity) {
-                mob.setTarget(threatCreatorEntity);
+        ServerLevel level = (ServerLevel) mob.level();
+        while (!map.isEmpty()) {
+            Entity threat = level.getEntity(highestKey);
+            if (threat != null && threat.isAlive()) {
+                break;
             }
-            return;
-        }
-
-        Entity threat = ((ServerLevel)mob.level()).getEntity(highestKey);
-        if (threat == null || !threat.isAlive()) {
             map.remove(highestKey);
-            updateMobTargetWithHighestThreat(mob, threatCreatorEntity, key);
+
+            if (map.isEmpty()) {
+                highestKey = null;
+                return;
+            }
+
+            highestKey = map.entrySet().stream().max(Comparator.comparingInt(Map.Entry::getValue)).get().getKey();
         }
     }
 
-    public UUID getHighest() {
-        if (map.isEmpty()) {
-            return null;
+    private static void setTargetTo(Mob mob, LivingEntity threatCreatorEntity) {
+        if (mob.getTarget() != threatCreatorEntity) {
+            mob.setTarget(threatCreatorEntity);
         }
-
-        return map.entrySet().stream().max(Comparator.comparingInt(Map.Entry::getValue)).get().getKey();
     }
 }
